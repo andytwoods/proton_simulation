@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proton Simulation</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #simulation {
+      position: relative;
+      width: 80%;
+      height: 60vh;
+      border: 2px solid #000;
+      overflow: hidden;
+      background-color: #f0f0f0;
+    }
+    #canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .proton {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: red;
+    }
+    .magnet {
+      position: absolute;
+      width: 50px;
+      height: 100px;
+      top: 50%;
+      left: 90%;
+      transform: translateY(-50%);
+      background: linear-gradient(to bottom, blue 50%, red 50%);
+      border: 2px solid black;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      color: white;
+      font-weight: bold;
+    }
+    .slider-container {
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+    }
+    .slider-label {
+      margin-right: 10px;
+    }
+    .slider-value {
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="simulation">
+  <canvas id="canvas"></canvas>
+  <div class="magnet" id="magnet">
+    <div>N</div>
+    <div>S</div>
+  </div>
+</div>
+
+<div class="slider-container">
+  <label class="slider-label" for="magneticField">Magnetic Field Strength:</label>
+  <input type="range" id="magneticField" name="magneticField" min="0" max="100" value="50">
+  <span class="slider-value" id="magneticFieldValue">50</span>
+</div>
+
+<div class="slider-container">
+  <label class="slider-label" for="initialSpeed">Initial Speed:</label>
+  <input type="range" id="initialSpeed" name="initialSpeed" min="1" max="10" value="5">
+  <span class="slider-value" id="initialSpeedValue">5 m/s</span>
+</div>
+
+<div class="slider-container">
+  <label class="slider-label" for="magnetX">Magnet Horizontal Position:</label>
+  <input type="range" id="magnetX" name="magnetX" min="0" max="100" value="90">
+  <span class="slider-value" id="magnetXValue">90%</span>
+</div>
+
+<div class="slider-container">
+  <label class="slider-label" for="magnetY">Magnet Vertical Position:</label>
+  <input type="range" id="magnetY" name="magnetY" min="0" max="100" value="50">
+  <span class="slider-value" id="magnetYValue">50%</span>
+</div>
+
+<script>
+  const simulation = document.getElementById('simulation');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const magneticFieldSlider = document.getElementById('magneticField');
+  const initialSpeedSlider = document.getElementById('initialSpeed');
+  const magnetXSlider = document.getElementById('magnetX');
+  const magnetYSlider = document.getElementById('magnetY');
+  const magnet = document.getElementById('magnet');
+  let activeProtons = [];
+  const maxProtons = 20;
+  let trajectories = [];
+
+  const magneticFieldValue = document.getElementById('magneticFieldValue');
+  const initialSpeedValue = document.getElementById('initialSpeedValue');
+  const magnetXValue = document.getElementById('magnetXValue');
+  const magnetYValue = document.getElementById('magnetYValue');
+
+  function updateSliderValues() {
+    magneticFieldValue.textContent = magneticFieldSlider.value;
+    initialSpeedValue.textContent = `${initialSpeedSlider.value} m/s`;
+    magnetXValue.textContent = `${magnetXSlider.value}%`;
+    magnetYValue.textContent = `${magnetYSlider.value}%`;
+  }
+
+  function createProton(x, y) {
+    const proton = document.createElement('div');
+    proton.classList.add('proton');
+    proton.style.left = `${x}px`;
+    proton.style.top = `${y}px`;
+    simulation.appendChild(proton);
+    return proton;
+  }
+
+  function moveProton(proton, velocityX, velocityY) {
+    let posX = parseFloat(proton.style.left);
+    let posY = parseFloat(proton.style.top);
+
+    function updatePosition() {
+      const timeInterval = 0.1;
+      const magnetRect = magnet.getBoundingClientRect();
+      const magnetCenterX = magnetRect.left + magnetRect.width / 2;
+      const magnetCenterY = magnetRect.top + magnetRect.height / 2;
+      const protonRect = proton.getBoundingClientRect();
+      const protonCenterX = protonRect.left + protonRect.width / 2;
+      const protonCenterY = protonRect.top + protonRect.height / 2;
+
+      const dx = magnetCenterX - protonCenterX;
+      const dy = magnetCenterY - protonCenterY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      const magneticFieldStrength = magneticFieldSlider.value / 50;
+      const force = magneticFieldStrength / distance;
+
+      velocityY += force * dy * timeInterval;
+      velocityX += force * dx * timeInterval;
+      posX += velocityX * timeInterval;
+      posY += velocityY * timeInterval;
+
+      trajectories.push({ x: posX, y: posY, alpha: 1 });
+
+      proton.style.left = `${posX}px`;
+      proton.style.top = `${posY}px`;
+
+      if (posX < simulation.clientWidth && posX > 0 && posY < simulation.clientHeight && posY > 0) {
+        requestAnimationFrame(updatePosition);
+      } else {
+        simulation.removeChild(proton);
+        activeProtons = activeProtons.filter(p => p !== proton);
+      }
+    }
+
+    updatePosition();
+  }
+
+  function emitProton() {
+    if (activeProtons.length >= maxProtons) {
+      return;
+    }
+
+    const proton = createProton(0, simulation.clientHeight / 2);
+    activeProtons.push(proton);
+
+    const randomAngle = (Math.random() - 0.5) * Math.PI / 4; // Random angle between -π/8 and π/8
+    const initialSpeed = initialSpeedSlider.value;
+    const velocityX = initialSpeed * Math.cos(randomAngle);
+    const velocityY = initialSpeed * Math.sin(randomAngle);
+    moveProton(proton, velocityX, velocityY);
+  }
+
+  function updateMagnetPosition() {
+    const magnetX = magnetXSlider.value;
+    const magnetY = magnetYSlider.value;
+    magnet.style.left = `${magnetX}%`;
+    magnet.style.top = `${magnetY}%`;
+    magnet.style.transform = 'translate(-50%, -50%)';
+  }
+
+  function drawTrajectories() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setLineDash([5, 15]);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(128, 128, 128, 1)';
+
+    trajectories.forEach((trajectory, index) => {
+      if (index > 0) {
+        ctx.beginPath();
+        ctx.moveTo(trajectories[index - 1].x, trajectories[index - 1].y);
+        ctx.lineTo(trajectory.x, trajectory.y);
+        ctx.globalAlpha = trajectory.alpha;
+        ctx.stroke();
+      }
+      trajectory.alpha -= 0.01; // Fade out effect
+
+      if (trajectory.alpha <= 0) {
+        trajectories.splice(index, 1);
+      }
+    });
+
+    requestAnimationFrame(drawTrajectories);
+  }
+
+  magneticFieldSlider.addEventListener('input', updateSliderValues);
+  initialSpeedSlider.addEventListener('input', updateSliderValues);
+  magnetXSlider.addEventListener('input', () => {
+    updateSliderValues();
+    updateMagnetPosition();
+  });
+  magnetYSlider.addEventListener('input', () => {
+    updateSliderValues();
+    updateMagnetPosition();
+  });
+
+  // Emit protons periodically
+  setInterval(emitProton, 500);
+
+  // Initial setup
+  updateMagnetPosition();
+  updateSliderValues();
+  drawTrajectories();
+
+  // Resize canvas to fit simulation container
+  canvas.width = simulation.clientWidth;
+  canvas.height = simulation.clientHeight;
+
+  window.addEventListener('resize', () => {
+    canvas.width = simulation.clientWidth;
+    canvas.height = simulation.clientHeight;
+  });
+</script>
+
+</body>
+</html>
